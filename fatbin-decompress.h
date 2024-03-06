@@ -10,14 +10,15 @@
 
 #include <stdint.h>
 
-struct  __attribute__((__packed__)) fat_elf_header
+__pragma( pack( push, 1 ) )
+struct fat_elf_header
 {
     uint32_t magic;
     uint16_t version;
     uint16_t header_size;
     uint64_t size;
 };
-struct  __attribute__((__packed__)) fat_text_header
+struct fat_text_header
 {
     uint16_t kind;
     uint16_t unknown1;
@@ -36,6 +37,7 @@ struct  __attribute__((__packed__)) fat_text_header
                                     // There is an uncompressed footer so this is generally smaller
                                     // than size.
 };
+__pragma( pack( pop ) )
 
 size_t decompress(const uint8_t* input, size_t input_size, uint8_t* output, size_t output_size);
 size_t decompress_fatbin(const uint8_t* fatbin_data, size_t fatbin_size, uint8_t** decompressed_data);

@@ -12,7 +12,8 @@
 #include <errno.h>
 #include <string.h>
 #include <fcntl.h>
-#include <unistd.h>
+#include "asprintf.h"
+//#include <unistd.h>
 
 #include "fatbin-decompress.h"
 #include "utils.h"
@@ -24,6 +25,12 @@
 #define FATBIN_FLAG_DEBUG     0x0000000000000002LL
 #define FATBIN_FLAG_LINUX     0x0000000000000010LL
 #define FATBIN_FLAG_COMPRESS  0x0000000000002000LL
+
+static char str_error[ 256 ] = { 0 };
+static const char * __strerror( int errnum ) {
+    strerror_s( str_error, sizeof( str_error ) - 1, errno );
+    return str_error;
+}
 
 static int flag_to_str(char** str, uint64_t flag)
 {
@@ -140,8 +147,16 @@ size_t decompress(const uint8_t* input, size_t input_size, uint8_t* output, size
     uint64_t next_nclen;  // length of next non-compressed segment
     uint64_t next_clen;   // length of next compressed segment
     uint64_t back_offset; // negative offset where redudant data is located, relative to current opos
+    uint64_t block_number = 0;
 
     while (ipos < input_size) {
+        uint64_t initial_ipos = ipos;
+        if ( block_number == 68 ) {
+            printf( "block\n" );
+        }
+#ifdef FATBIN_DECOMPRESS_DEBUG
+        printf("===\nblock %zu:\n", block_number);
+#endif
         next_nclen = (input[ipos] & 0xf0) >> 4;
         next_clen = 4 + (input[ipos] & 0xf);
         if (next_nclen == 0xf) {
@@ -155,11 +170,13 @@ size_t decompress(const uint8_t* input, size_t input_size, uint8_t* output, size
             return 0;
         }
 #ifdef FATBIN_DECOMPRESS_DEBUG
+        hexdump( input + initial_ipos, ipos + next_nclen - initial_ipos );
         printf("%#04zx/%#04zx nocompress (len:%#zx):\n", opos, ipos, next_nclen);
         hexdump(output + opos, next_nclen);
 #endif
         ipos += next_nclen;
         opos += next_nclen;
+        initial_ipos = ipos;
         if (ipos >= input_size || opos >= output_size) {
             break;
         }
@@ -171,8 +188,14 @@ size_t decompress(const uint8_t* input, size_t input_size, uint8_t* output, size
             } while (input[ipos - 1] == 0xff);
         }
 #ifdef FATBIN_DECOMPRESS_DEBUG
+        printf( "---\n" );
+        hexdump( input + initial_ipos, ipos - initial_ipos );
         printf("%#04zx/%#04zx compress (decompressed len: %#zx, back_offset %#zx):\n", opos, ipos, next_clen, back_offset);
 #endif
+        if ( back_offset > opos ) {
+            fprintf( stderr, "Invalid back offset\n" );
+            next_clen = 0;
+        }
         if (next_clen <= back_offset) {
             if (memcpy(output + opos, output + opos - back_offset, next_clen) == NULL) {
                 fprintf(stderr, "Error copying data");
@@ -191,6 +214,7 @@ size_t decompress(const uint8_t* input, size_t input_size, uint8_t* output, size
         hexdump(output + opos, next_clen);
 #endif
         opos += next_clen;
+        block_number++;
     }
     return opos;
 }
@@ -214,7 +238,7 @@ int decompress_section(const uint8_t *input, uint8_t **output, size_t *output_si
 
     if ((*output = realloc(*output, *output_size + th->decompressed_size + eh->header_size + th->header_size)) == NULL) {
         fprintf(stderr, "Error allocating memory of size %#zx for output buffer: %s\n", 
-                *output_size + th->decompressed_size + eh->header_size + th->header_size, strerror(errno));
+                *output_size + th->decompressed_size + eh->header_size + th->header_size, __strerror( errno ) );
         ret = -1;
         goto error;
     }

@@ -12,18 +12,18 @@ void hexdump(const uint8_t* data, size_t size)
 {
     size_t pos = 0;
     while (pos < size) {
-        printf("%#05zx: ", pos);
+        printf("%#05zx: | ", pos);
         for (int i = 0; i < 16; i++) {
             if (pos + i < size) {
-                printf("%02x", data[pos + i]);
+                printf("%02x ", data[pos + i]);
             } else {
-                printf("  ");
+                printf("   ");
             }
             if (i % 4 == 3) {
-                printf(" ");
+                printf("| ");
             }
         }
-        printf(" | ");
+        printf("  ");
         for (int i = 0; i < 16; i++) {
             if (pos + i < size) {
                 if (data[pos + i] >= 0x20 && data[pos + i] <= 0x7e) {
